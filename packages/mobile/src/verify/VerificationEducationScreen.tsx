@@ -43,6 +43,7 @@ import GoogleReCaptcha from 'src/verify/safety/GoogleReCaptcha'
 import VerificationLearnMoreDialog from 'src/verify/VerificationLearnMoreDialog'
 import VerificationSkipDialog from 'src/verify/VerificationSkipDialog'
 import { currentAccountSelector } from 'src/web3/selectors'
+import { prepare, komenciContextSelector } from './reducer'
 
 type ScreenProps = StackScreenProps<StackParamList, Screens.VerificationEducationScreen>
 
@@ -62,13 +63,13 @@ function VerificationEducationScreen({ route, navigation }: Props) {
   const numberVerified = useSelector(numberVerifiedSelector)
   const partOfOnboarding = !route.params?.hideOnboardingStep
 
-  const verificationState = useSelector(verificationStateSelector)
-  const feelessVerificationState = useSelector(feelessVerificationStateSelector)
-  const tryFeeless = feelessVerificationState.komenci.serviceAvailable
-  const relevantVerificationState = tryFeeless ? feelessVerificationState : verificationState
-  const { actionableAttestations, status } = relevantVerificationState
-  const { numAttestationsRemaining } = status
-  const withoutRevealing = actionableAttestations.length >= numAttestationsRemaining
+  // const verificationState = useSelector(verificationStateSelector)
+  const komenciContext = useSelector(komenciContextSelector)
+  const komenciAvailable = komenciContext.serviceAvailable
+  // const relevantVerificationState = tryFeeless ? feelessVerificationState : verificationState
+  // const { actionableAttestations, status } = relevantVerificationState
+  // const { numAttestationsRemaining } = status
+  // const withoutRevealing = actionableAttestations.length >= numAttestationsRemaining
 
   const country = useMemo(() => {
     const regionCode = getRegionCode(e164PhoneNumber || '')
@@ -80,11 +81,11 @@ function VerificationEducationScreen({ route, navigation }: Props) {
     dispatch(initializeAccount())
   }, [])
 
-  useEffect(() => {
-    if (verificationState.status.isVerified || feelessVerificationState.status.isVerified) {
-      dispatch(setNumberVerified(true))
-    }
-  }, [verificationState.status.isVerified, feelessVerificationState.status.isVerified])
+  // useEffect(() => {
+  // if (verificationState.status.isVerified || feelessVerificationState.status.isVerified) {
+  // dispatch(setNumberVerified(true))
+  // }
+  // }, [verificationState.status.isVerified, feelessVerificationState.status.isVerified])
 
   useFocusEffect(
     // useCallback is needed here: https://bit.ly/2G0WKTJ
@@ -99,18 +100,19 @@ function VerificationEducationScreen({ route, navigation }: Props) {
 
   const onStartVerification = () => {
     dispatch(setHasSeenVerificationNux(true))
-    if (tryFeeless) {
-      dispatch(feelessStartVerification(withoutRevealing))
-    } else {
-      dispatch(startVerification(withoutRevealing))
-    }
+    console.log('komenciAvailable: ', komenciAvailable)
+    // if (tryFeeless) {
+    // dispatch(feelessStartVerification(withoutRevealing))
+    // } else {
+    // dispatch(startVerification(withoutRevealing))
+    // }
   }
 
   const onPressStart = async () => {
-    const { sessionActive } = feelessVerificationState.komenci
+    const { sessionActive } = komenciContext
 
-    if (tryFeeless && !sessionActive) {
-      await showCaptcha()
+    if (komenciAvailable && !sessionActive) {
+      showCaptcha()
     } else {
       onStartVerification()
     }
@@ -142,12 +144,7 @@ function VerificationEducationScreen({ route, navigation }: Props) {
     setShowLearnMoreDialog(false)
   }
 
-  const showCaptcha = async () => {
-    setIsCaptchaVisible(true)
-    // const safetyNetAttestationResponse = await getSafetyNetAttestation()
-    // Logger.info('SafetyNet attestation complete:', JSON.stringify(safetyNetAttestationResponse))
-    // setSafetyNetAttestation(safetyNetAttestationResponse)
-  }
+  const showCaptcha = () => setIsCaptchaVisible(true)
   const hideCaptcha = () => setIsCaptchaVisible(false)
 
   const handleCaptchaResolved = (res: any) => {
@@ -161,20 +158,25 @@ function VerificationEducationScreen({ route, navigation }: Props) {
     }
   }
 
-  if (feelessVerificationState.isLoading || verificationState.isLoading || !account) {
-    return (
-      <View style={styles.loader}>
-        {account && (
-          <VerificationSkipDialog
-            isVisible={showSkipDialog}
-            onPressCancel={onPressSkipCancel}
-            onPressConfirm={onPressSkipConfirm}
-          />
-        )}
-        <ActivityIndicator size="large" color={colors.greenBrand} />
-      </View>
-    )
-  }
+  useEffect(() => {
+    dispatch(prepare())
+  }, [])
+
+  // TODO: Remove true from here
+  // if (feelessVerificationState.isLoading || verificationState.isLoading || !account) {
+  // return (
+  // <View style={styles.loader}>
+  // {account && (
+  // <VerificationSkipDialog
+  // isVisible={showSkipDialog}
+  // onPressCancel={onPressSkipCancel}
+  // onPressConfirm={onPressSkipConfirm}
+  // />
+  // )}
+  // <ActivityIndicator size="large" color={colors.greenBrand} />
+  // </View>
+  // )
+  // }
 
   let bodyText
   let firstButton
@@ -191,9 +193,9 @@ function VerificationEducationScreen({ route, navigation }: Props) {
         testID="VerificationEducationSkip"
       />
     )
-  } else if (tryFeeless || verificationState.isBalanceSufficient) {
+  } else if (komenciAvailable || verificationState.isBalanceSufficient) {
     // Sufficient balance
-    bodyText = t(`verificationEducation.${tryFeeless ? 'feelessBody' : 'body'}`)
+    bodyText = t(`verificationEducation.${komenciAvailable ? 'feelessBody' : 'body'}`)
     firstButton = (
       <Button
         text={
